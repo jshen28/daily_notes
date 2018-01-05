@@ -1,0 +1,2 @@
+# DAILY NOTE
+
