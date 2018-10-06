@@ -125,3 +125,7 @@ func main() {
 }
 
 ```
+
+## REASON
+
+The problem finally turns to be that ironic driver does not return a valid `CPUInfo` field as a normal nova driver does which failed the json deserialization process. In order to avoid this error message, we may either modify code ourselves or simply adding up some fake cpu information.
