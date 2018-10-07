@@ -143,4 +143,8 @@ Rules could be catagorized into three classes in `oslo.policy`: extension, regis
 
 Extension rules are defined and loaded from namespace `oslo.policy.rule_checks`, of course one can define rules on their own but the current implementation is http(s) checks which enables validating request by http(s) requests.
 
-Registered check and None check are registerd by python decorator `@register()`, right now there are three rules `rule`, `role` and `None` where the latter stands for a generic check.
+Registered check and None check are registerd by python decorator `@register()`, right now there are three rules `rule`, `role` and `None` where the latter stands for a generic check. Rule and role checks are easy to understand. Generic checks is a litter harder to understand because it is much flexible to use. Examples will be helpful.
+
+For example, input target is `{"user": { "enabled": "True" }}` and rule is 'True:%{user.enabled}s', this is a match because `%(user.enabled}s` will be resolved to `True` which equals with left side.
+
+Another example will be more interesting, let's say target is `{"tenant_id": "abc"}`, rule string is "tenant_id:%(tenant_id)s" and creds is `{"tenant_id": "abc"}`. Of course, abc is not equal with tenant_id (this process is evaluated every time this rule is applied). Then `_find_in_dict` is invoked, in this function tenand_id will be retrived from input target and compared with abc, this turns out to be a match and returns a True. If `test_valu[key]` gives you a list then all values be checked, if it is a dict then recursively check until it resolves to be a singular value.
