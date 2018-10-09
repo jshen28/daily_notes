@@ -4,3 +4,7 @@
 
 [On envoy design](https://lethain.com/envoy-design/)
 [on virtualization by Kevin Lawton](http://denali.cs.washington.edu/relwork/papers/plex86.txt)
+
+## 2018-10-9
+
+[Ceph rbd exclusive lock only works for a single client](http://lists.ceph.com/pipermail/ceph-users-ceph.com/2017-April/017370.html)
