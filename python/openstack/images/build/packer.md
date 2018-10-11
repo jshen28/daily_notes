@@ -8,7 +8,7 @@ Packer is used to create cumstom user images against different cloud. It accepts
 
 ### OPENSTACK EXAMPLE
 
-If environment variable is not available in template, `packer` builder will search through `env` instead so you probably would like to source resource file to provider credentials.
+If environment variable is not available in template, `packer` builder will search through `env` instead so you probably would like to source resource file to provide credentials.
 
 ```json
 {
