@@ -101,3 +101,32 @@ Notice that value `swift` will be mapped to `_swift.conf` which has been added a
 Configuration of swift backed cinder-backup has two flavors: on one hand you may configure it to use project for each log-in user or you can configure it use a system-wide user. The related configuration option is called **backup_swift_auth** and its value is either *per_user* or *single_user*.
 
 Another important options are **backup_swift_object_size** and **backup_swift_block_size**. Notice that rbd file will be compressed, truancated and then put into swift backend. The **backup_swift_object_size** defines the size of object being saved; **backup_swift_block_size** is the block tracked by cinder-backup service which enables incremental backup capability.
+
+## POTENTIAL BUGS
+
+### CINDER-VOLUME LOGGING CONFIGURATION MISSING
+
+While observing system state on Kibana, it occurs to me that `cinder-volume` logs are missing. The problem seems to reside on the fact that fluentd configuration for `cinder-volume` is missing. This bug is pretty easy to verify: simply log into kibana dashboard and search for it, you will not find it under colume *programname*.
+
+The reason of this problem is salt formula does not handle correctly if `cinder-volume` lives with `cinder-api`. Related code snippet is,
+
+```yaml
+{%- if not pillar.cinder.get('controller', {}).get('enabled', False) %}
+# skip code block #
+
+{%- if volume.logging.log_handlers.get('fluentd', {}).get('enabled', False) %}
+cinder_volume_fluentd_logger_package:
+  pkg.installed:
+    - name: python-fluent-logger
+{%- endif %}
+
+{% for service_name in cinder_log_services %}
+{{ service_name }}_logging_conf:
+  file.managed:
+    - name: /etc/cinder/logging/logging-{{ service_name }}.conf
+    - source: salt://cinder/files/logging.conf
+# skip code block #
+{%- endif %}
+```
+
+As you can see if **controller** is enabled on the node, then all above code block will be ignored which is incorrect because `cinder-volume` requires a logging configuration for itself which should be called **logging-cinder-volume.conf**.
