@@ -77,4 +77,13 @@ Threads I've read
 * [set up proxy arp](https://infosec-neo.blogspot.com/2007/07/how-to-implement-proxy-arp-on-linux-box.html)
 * [how to enable/disable proxy arp in linux](http://www.linuxproblem.org/art_8.html)
 
-## HOW DOES L3-AGENT IMPLEMENT THE WHOLE THING
+## NEUTRON CODE ANALYSIS
+
+### ML2 PLUGIN (EXTENSION)
+
+Resource (resource map) are extended by extension plugins.
+
+* neutron manager initialize, `_load_service_plugins`, namespace: `neutron.service_plugins`.
+* `L3_ROUTER_NAT` connects extension with service plugin; `neutron.services.l3_router.l3_router_plugin.L3RouterPlugin#get_plugin_type`
+* ExtensionManager loads extensions (default: neutron/extension)
+* Extension(ExtensionDesriptor) got method `get_resource` which will return a collection of object having both controller and plugin etc.
