@@ -77,6 +77,8 @@ Threads I've read
 * [set up proxy arp](https://infosec-neo.blogspot.com/2007/07/how-to-implement-proxy-arp-on-linux-box.html)
 * [how to enable/disable proxy arp in linux](http://www.linuxproblem.org/art_8.html)
 
+## IPTABLES USAGES
+
 ## NEUTRON CODE ANALYSIS
 
 ### ML2 PLUGIN (EXTENSION)
@@ -87,3 +89,7 @@ Resource (resource map) are extended by extension plugins.
 * `L3_ROUTER_NAT` connects extension with service plugin; `neutron.services.l3_router.l3_router_plugin.L3RouterPlugin#get_plugin_type`
 * ExtensionManager loads extensions (default: neutron/extension)
 * Extension(ExtensionDesriptor) got method `get_resource` which will return a collection of object having both controller and plugin etc.
+* l3 agent service callbacks are registerd at `neutron.services.l3_router.l3_router_plugin.L3RouterPlugin#__init__`.
+* fip port is created here `neutron.agent.l3.dvr_fip_ns.FipNamespace#_create_gateway_port`, `dvr_fip_ns.py` implements specific fip namespace.
+* router updated notification is received & responsed `neutron.agent.l3.agent.L3NATAgent#_process_router_update`.
+* process router with `neutron.agent.l3.agent.L3NATAgent#_process_router_if_compatible` if it does not exist or `self.router_info` is not intialized
