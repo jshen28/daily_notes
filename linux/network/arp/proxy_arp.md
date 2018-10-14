@@ -24,21 +24,12 @@ sysctl -w net.ipv4.ip_forward=1
 ### NETWORK BIRD VIEW
 
 ```raw
-# ---------
-# |       |
-# | net 1 |
-# | proxy |
-# |       |
-# ---------
-#     |
-#     |
-# ---------
-# |       |
-# | net 2 |
-# | netns |
-# |       |
-# ---------
-
+# ---------               -----------
+# |       |               |         |
+# | net 1 |    <------>   |  net 2  |
+# | proxy |               |  netns  |
+# |       |               |         |
+# ---------               -----------
 ```
 
 ### CREATE NETNS & VETH PAIR
@@ -72,7 +63,7 @@ ip netns exec ${NS_NAME} arping ${VETH0}
 
 Threads I've read
 
-* [nicely put article on dvr implementation](http://www.cnblogs.com/sammyliu/p/4713562.html)
+* [a good reference on dvr implementation](http://www.cnblogs.com/sammyliu/p/4713562.html)
 * [mostly refered to article on dvr and ovs](https://assafmuller.com/2015/04/15/distributed-virtual-routing-floating-ips/)
 * [set up proxy arp](https://infosec-neo.blogspot.com/2007/07/how-to-implement-proxy-arp-on-linux-box.html)
 * [how to enable/disable proxy arp in linux](http://www.linuxproblem.org/art_8.html)
@@ -93,3 +84,8 @@ Resource (resource map) are extended by extension plugins.
 * fip port is created here `neutron.agent.l3.dvr_fip_ns.FipNamespace#_create_gateway_port`, `dvr_fip_ns.py` implements specific fip namespace.
 * router updated notification is received & responsed `neutron.agent.l3.agent.L3NATAgent#_process_router_update`.
 * process router with `neutron.agent.l3.agent.L3NATAgent#_process_router_if_compatible` if it does not exist or `self.router_info` is not intialized
+* For south-north traffic, traffic originated from VM will first be sent to **local router**, and then go all the way to **snat namespace**; the reply packet will first hit **snat**, then dvr router on **network node**, and finally return to VM. So basically packet will go throught different path which could be easily verified by `tcpdump`.
+
+### RANDOM RANTS
+
+* My question is why `fip` namespace is necessary? Isn't better to still associate floating ip inside each router?
