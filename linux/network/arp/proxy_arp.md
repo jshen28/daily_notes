@@ -83,9 +83,14 @@ Resource (resource map) are extended by extension plugins.
 * l3 agent service callbacks are registerd at `neutron.services.l3_router.l3_router_plugin.L3RouterPlugin#__init__`.
 * fip port is created here `neutron.agent.l3.dvr_fip_ns.FipNamespace#_create_gateway_port`, `dvr_fip_ns.py` implements specific fip namespace.
 * router updated notification is received & responsed `neutron.agent.l3.agent.L3NATAgent#_process_router_update`.
-* process router with `neutron.agent.l3.agent.L3NATAgent#_process_router_if_compatible` if it does not exist or `self.router_info` is not intialized
+* process router with `neutron.agent.l3.agent.L3NATAgent#_process_router_if_compatible` if it does not exis or `self.router_info` is not intialized
 * For south-north traffic, traffic originated from VM will first be sent to **local router**, and then go all the way to **snat namespace**; the reply packet will first hit **snat**, then dvr router on **network node**, and finally return to VM. So basically packet will go throught different path which could be easily verified by `tcpdump`.
+* gratuitous arp for updating arp tables on devices on link
 
 ### RANDOM RANTS
 
 * My question is why `fip` namespace is necessary? Isn't better to still associate floating ip inside each router?
+
+### FIP REFERENCES
+
+* [most refered article on DVR, very informative](https://assafmuller.com/2015/04/15/distributed-virtual-routing-floating-ips/)
