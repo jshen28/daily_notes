@@ -186,57 +186,44 @@ class L3NATAgent(ha.AgentMixin,
                 update = queue.RouterUpdate(id, queue.PRIORITY_RPC)
                 self._queue.add(update)
 
-        def after_start(self):
-            eventlet.spawn_n(self._process_routers_loop)
-            LOG.info("L3 agent started")
+    def after_start(self):
+        eventlet.spawn_n(self._process_routers_loop)
+        LOG.info("L3 agent started")
 
 
 @profiler.trace_cls("l3-agent")
 class L3NATAgent(ha.AgentMixin,
                  dvr.AgentMixin,
                  manager.Manager):
+
+    # spawn eventlet to handle router update uqueue
     def _process_routers_loop(self):
         LOG.debug("Starting _process_routers_loop")
         pool = eventlet.GreenPool(size=8)
         while True:
             pool.spawn_n(self._process_router_update)
 
+    # process candidates
     def _process_router_update(self):
         for rp, update in self._queue.each_update_to_next_router():
             router = update.router
             if update.action != queue.DELETE_ROUTER and not router:
                 try:
                     update.timestamp = timeutils.utcnow()
+                    # initialize router object by given id
                     routers = self.plugin_rpc.get_routers(self.context,
                                                           [update.id])
                 except Exception:
-                    msg = "Failed to fetch router information for '%s'"
-                    LOG.exception(msg, update.id)
-                    self._resync_router(update)
                     continue
 
                 if routers:
                     router = routers[0]
 
             try:
+                # process router if it should be handled locally
                 self._process_router_if_compatible(router)
-            except n_exc.RouterNotCompatibleWithAgent as e:
-                log_verbose_exc(e.msg, router)
-                # Was the router previously handled by this agent?
-                if router['id'] in self.router_info:
-                    LOG.error("Removing incompatible router '%s'",
-                              router['id'])
-                    self._safe_router_removed(router['id'])
-            except Exception:
-                log_verbose_exc(
-                    "Failed to process compatible router: %s" % update.id,
-                    router)
-                self._resync_router(update)
+            except Exception as e:
                 continue
-
-            LOG.debug("Finished a router update for %s", update.id)
-            rp.fetched_and_processed(update.timestamp)
-
 
     def _process_router_if_compatible(self, router):
 
@@ -250,11 +237,15 @@ class L3NATAgent(ha.AgentMixin,
                     router_id=router['id'])
 
         if router['id'] not in self.router_info:
+            # If router does not exists or service has been restarted
+            # reinitialize instance
             self._process_added_router(router)
         else:
+            # if router already there, then update it directly
             self._process_updated_router(router)
 
 
+    # update router
     def _process_updated_router(self, router):
         ri = self.router_info[router['id']]
         is_dvr_only_agent = (self.conf.agent_mode in
@@ -266,9 +257,14 @@ class L3NATAgent(ha.AgentMixin,
             self.check_ha_state_for_router(
                 router['id'], router.get(l3_constants.HA_ROUTER_STATE_KEY))
         ri.router = router
+        # notfiy that router is to be updated
         registry.notify(resources.ROUTER, events.BEFORE_UPDATE,
                         self, router=ri)
+
+        # there are two types of dvr rotuers: dvr, dvr_snat
         ri.process()
+
+        # notify router has finished updating
         registry.notify(resources.ROUTER, events.AFTER_UPDATE, self, router=ri)
         self.l3_ext_manager.update_router(self.context, router)
 
@@ -295,13 +291,16 @@ class Service(n_rpc.Service):
             periodic.start(interval=self.periodic_interval,
                            initial_delay=initial_delay)
             self.timers.append(periodic)
+
+        # -----------------------------------
+        # going to start those eventlet pools
         self.manager.after_start()
 ```
 
 The code till triggers `process` method is pretty complex. There are several things to keep in mind
 
-* Manager handles a queued router update notifications, and consume it by spawning coroutine in greenlet pool. This task is started by `Manager.after_start` inside `Service.start` method.
-* `router_info` object will be create every time `l3-agent` is restarted and `_process_added_router` will be triggered if `router_info[key]` is empty.
+* Manager (L3NATAgent etc) handles a queued router update notification, and consume it by spawning coroutine in greenlet pool. This task is started by `Manager.after_start` inside `Service.start` method.
+* `router_info` object will be created (because it is saved in memory) every time `l3-agent` is restarted and `_process_added_router` will be triggered if `router_info[key]` is empty.
 
 #### CORE
 
@@ -312,22 +311,28 @@ There are two types of routers, one is `dvr`, ther other is `dvr_snat`. Their im
 ```python
 # handle router on compute node
 class DvrLocalRouter(dvr_router_base.DvrRouterBase):
+
+    # entrance
     def process(self):
         ex_gw_port = self.get_ex_gw_port()
         if ex_gw_port:
             # agent is 'L3NATAgentWithStateReport' itself
             # fip name is created from network_id
             self.fip_ns = self.agent.get_fip_ns(ex_gw_port['network_id'])
+
+            # scan port in fip namespace and remove those staled ips
             self.fip_ns.scan_fip_ports(self)
 
         super(DvrLocalRouter, self).process()
 
+    # override parent class method
     def process_external(self):
+        # this is a dvr router
         if self.agent_conf.agent_mode != (
             n_const.L3_AGENT_MODE_DVR_NO_EXTERNAL):
             ex_gw_port = self.get_ex_gw_port()
             if ex_gw_port:
-                # make sure fg-<> tap device exists
+                # make sure fg-xxx tap device exists
                 self.create_dvr_external_gateway_on_agent(ex_gw_port)
                 # make sure qrouter & fip are connected
                 self.connect_rtr_2_fip()
@@ -381,6 +386,8 @@ class DvrLocalRouter(dvr_router_base.DvrRouterBase):
             return
         floating_ip = fip['floating_ip_address']
         fixed_ip = fip['fixed_ip_address']
+
+        # add rule for routing fip traffic backup to qrouter-xxx
         self._add_floating_ip_rule(floating_ip, fixed_ip)
         fip_2_rtr_name = self.fip_ns.get_int_device_name(self.router_id)
         #Add routing rule in fip namespace
@@ -390,6 +397,10 @@ class DvrLocalRouter(dvr_router_base.DvrRouterBase):
                 self.router_id)
         rtr_2_fip, __ = self.rtr_fip_subnet.get_pair()
         device = ip_lib.IPDevice(fip_2_rtr_name, namespace=fip_ns_name)
+
+        # add this route for proxy arp purpose
+        # when fip namespace is created, net.ipv4.conf.xxx.proxy_arp will 
+        # be set to 1
         device.route.add_route(fip_cidr, str(rtr_2_fip.ip))
 ```
 
@@ -599,7 +610,10 @@ class RouterInfo(object):
 ```
 
 ```python
+# implements
 class FipNamespace(namespaces.Namespace):
+
+    # create fg-xxx tap device inside of fip namespace
     def create_or_update_gateway_port(self, agent_gateway_port):
         interface_name = self.get_ext_device_name(agent_gateway_port['id'])
 
