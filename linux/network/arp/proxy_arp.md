@@ -310,6 +310,7 @@ In dvr mode, a router could be further catogrized into at least three modes: **d
 There are two types of routers, one is `dvr`, ther other is `dvr_snat`. Their implmentations are `DvrLocalRouter` and `DvrEdgeRouter` respectively. DvrLocalRouter is responsible for routing traffic on compute nodes, while DvrEdgeRouter is a NAT gateway.
 
 ```python
+# handle router on compute node
 class DvrLocalRouter(dvr_router_base.DvrRouterBase):
     def process(self):
         ex_gw_port = self.get_ex_gw_port()
@@ -393,6 +394,7 @@ class DvrLocalRouter(dvr_router_base.DvrRouterBase):
 ```
 
 ```python
+# handles snat & iptables
 class DvrEdgeRouter(dvr_local_router.DvrLocalRouter):
     def external_gateway_added(self, ex_gw_port, interface_name):
         super(DvrEdgeRouter, self).external_gateway_added(
@@ -412,9 +414,32 @@ class DvrEdgeRouter(dvr_local_router.DvrLocalRouter):
                       "a stale namespace %s and will be cleared from the "
                       "current dvr_snat host.", self.snat_namespace.name)
             self.external_gateway_removed(ex_gw_port, interface_name)
+
+    def _create_dvr_gateway(self, ex_gw_port, gw_interface_name):
+        snat_ns = self._create_snat_namespace()
+        # connect snat_ports to br_int from SNAT namespace
+        for port in self.get_snat_interfaces():
+            self._plug_snat_port(port)
+        self._external_gateway_added(ex_gw_port, gw_interface_name,
+                                     snat_ns.name, preserve_ips=[])
+        self.snat_iptables_manager = iptables_manager.IptablesManager(
+            namespace=snat_ns.name,
+            use_ipv6=self.use_ipv6)
+
+        self._initialize_address_scope_iptables(self.snat_iptables_manager)
+
+    def _plug_snat_port(self, port):
+        interface_name = self._get_snat_int_device_name(port['id'])
+        self._internal_network_added(
+            self.snat_namespace.name, port['network_id'],
+            port['id'], port['fixed_ips'],
+            port['mac_address'], interface_name,
+            lib_constants.SNAT_INT_DEV_PREFIX,
+            mtu=port.get('mtu'))
 ```
 
 ```python
+# base class
 class RouterInfo(object):
     def process_external(self):
         fip_statuses = {}
@@ -554,6 +579,23 @@ class RouterInfo(object):
             self.remove_floating_ip(device, ip_cidr)
 
         return fip_statuses
+
+    def _internal_network_added(self, ns_name, network_id, port_id,
+                                fixed_ips, mac_address,
+                                interface_name, prefix, mtu=None):
+        LOG.debug("adding internal network: prefix(%s), port(%s)",
+                  prefix, port_id)
+        self.driver.plug(network_id, port_id, interface_name, mac_address,
+                         namespace=ns_name,
+                         prefix=prefix, mtu=mtu)
+
+        ip_cidrs = common_utils.fixed_ip_cidrs(fixed_ips)
+        self.driver.init_router_port(
+            interface_name, ip_cidrs, namespace=ns_name)
+        for fixed_ip in fixed_ips:
+            ip_lib.send_ip_addr_adv_notif(ns_name,
+                                          interface_name,
+                                          fixed_ip['ip_address'])
 ```
 
 ```python
@@ -656,6 +698,22 @@ class FipNamespace(namespaces.Namespace):
         self._add_cidr_to_device(fip_2_rtr_dev, str(fip_2_rtr))
         self._add_rtr_ext_route_rule_to_route_table(ri, fip_2_rtr,
                                                     fip_2_rtr_name)
+```
+
+#### NETWORK FLOW REVIEW
+
+##### FIXED IP
+
+```raw
+vm -> qr-xxx (on compute node) -> sg-xxx (snat) -> outside
+outside ->  sg-xxx (snat) -> qr-xxx (network node) -> vm
+```
+
+##### FLOATING IP
+
+```raw
+vm -> qr-xxx (snat/dnat) -> rfp-xxx -> fpr-xxx -> fg-xxx -> outside
+outside -> fg-xxx -> fpr-xxx -> rfp-xxx (snat/dnat) -> qr-xxx -> vm
 ```
 
 ### RANDOM RANTS
