@@ -426,6 +426,7 @@ class DvrEdgeRouter(dvr_local_router.DvrLocalRouter):
                       "current dvr_snat host.", self.snat_namespace.name)
             self.external_gateway_removed(ex_gw_port, interface_name)
 
+<<<<<<< Updated upstream
     def _create_dvr_gateway(self, ex_gw_port, gw_interface_name):
         snat_ns = self._create_snat_namespace()
         # connect snat_ports to br_int from SNAT namespace
@@ -447,6 +448,9 @@ class DvrEdgeRouter(dvr_local_router.DvrLocalRouter):
             port['mac_address'], interface_name,
             lib_constants.SNAT_INT_DEV_PREFIX,
             mtu=port.get('mtu'))
+=======
+
+>>>>>>> Stashed changes
 ```
 
 ```python
