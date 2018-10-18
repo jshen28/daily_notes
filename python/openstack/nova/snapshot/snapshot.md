@@ -129,4 +129,25 @@ with libvirt_utils.file_open(out_path, 'rb') as image_file:
     self._image_api.update(context, image_id, metadata, image_file)
 ```
 
+### WHY DIRECT SNAPSHOT IS MUCH BETTER
+
+After trying out both of two, it is clear that snapshot is much better both in terms of speed and traffic saving. It saves speed because ceph will **not** copy all the data blindly, it will determine the useful portion and copy those. For example, I try,
+
+```bash
+# clone & deep flatten
+rbd clone <src-pool>/<src-name>@<snap-name> <dest-pool>/<dest-name>
+rbd flatten <dest-pool>/<dest-name>
+
+# copy
+rbd copy <src-pool>/<src-name> <dest-pool>/<dest-name>
+```
+
+The test image size is 40GB, but the network traffic for downloading and uploading image combined is around 10GB which means not all of the data are transfered, I guess ceph will maintain a byte map which will indicate if no more useful data exists from certian position. On the contrary, uploading by glance will not share this intelligence. Event if `qemu-img` might be able to benefit from above mechanism, uploading to glance will be sure to upload every bit so will be incredibly slow.
+
+I use `iftop` to measure network traffic and hopefully that will be correct.
+
+### QoS
+
+The problem is there is no way to throttle network traffic, because right now ceph seems not provide that mechanism.
+
 ## VOLUME SNAPSHOT
