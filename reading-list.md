@@ -12,3 +12,7 @@
 ## 2018-10-18
 
 [Multi-region keystone with different rds as backend](https://beyondtheclouds.github.io/blog/openstack/cockroachdb/2018/06/04/evaluation-of-openstack-multi-region-keystone-deployments.html)
+
+## 2018-11-09
+
+[Explain lscpi output](https://diego.assencio.com/?index=649b7a71b35fc7ad41e03b6d0e825f07)
