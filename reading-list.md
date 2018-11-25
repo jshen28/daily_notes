@@ -16,3 +16,7 @@
 ## 2018-11-09
 
 [Explain lscpi output](https://diego.assencio.com/?index=649b7a71b35fc7ad41e03b6d0e825f07)
+
+## 2018-11-25
+
+[a complete introduction to nova schedulers & weighters](https://docs.openstack.org/newton/config-reference/compute/schedulers.html)
