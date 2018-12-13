@@ -6,6 +6,7 @@ For a full list of releases notes of pike, see [this](https://docs.openstack.org
 
 Some interesting changes:
 
+* [DVR could be configured to save public IP](https://docs.openstack.org/neutron/latest/admin/config-service-subnets.html)
 * DVR agent now has three modes: *dvr_snat*, *dvr* and *dvr_no_external*. The new mode will only route *east-west* traffic.
 * The openvswitch L2 agent now supports bi-directional bandwidth limiting.
 * Now port mtu is writable.
