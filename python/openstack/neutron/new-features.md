@@ -21,6 +21,16 @@ Some interesting changes:
 * Bug fix
   * For InfiniBand(IB), dhcp requires dhcp option to be a number
 
+### QUEENS
+
+* Bug Fix
+* New Feature
+  * To disable dhcp server, set **dns_nameservers** attribute for the corresponding subnet to 0.0.0.0 or :: for IPv4 and IPv6 respectively.
+  * Implementation of floating IP QoS. A new parameter **qos_policy_id** was added to floating IP related API.
+  * Allow configuration of DHCP renewal (T1) and rebinding (T2) timers (options 58 and 59 as per RFC2132) in **neutron-dhcp-agent**.
+  * Tenants are able to choose a specific subnet on a shared network to create a port by default policy
+  * **dscp**
+
 ### ROCKY
 
 * New Feature
