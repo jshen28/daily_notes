@@ -20,3 +20,7 @@
 ## 2018-11-25
 
 [a complete introduction to nova schedulers & weighters](https://docs.openstack.org/newton/config-reference/compute/schedulers.html)
+
+## 2018-12-20
+
+[lvs mtu discovery: identification & solution](http://opsmonkey.blogspot.com/2007/02/path-mtu-discovery-and-mtu.html)
