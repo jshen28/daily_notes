@@ -218,4 +218,4 @@ As one can see, neutron server does not use **security_group_ids** to filter all
 
 ## SOLUTION
 
-* Then simplest solution is to update openstack release to **queens** where a overloaded method is introduced to first get a subnet of ports.
+* Then simplest solution is update openstack release to **queens** where a overloaded method is introduced to first get a subnet of ports.
