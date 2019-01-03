@@ -216,6 +216,36 @@ class NeutronDbObject(NeutronObject):
 
 As one can see, neutron server does not use **security_group_ids** to filter all existing ports. The problem of this is all ports will be processed and this is very expensive. Because to assemble a **Port** object, at least *security group*, *security group rule* and *binding* are also required to be created which consumes at least 3 more DB operations. So a simple sum up will show that at least `n*4` database operations. Because database operation is pretty expensive, then if *n* is large, then time consumption is not neglectible.
 
+## TEST SCRIPT
+
+Run following test and observe how long it takes before returning a list of ports.
+
+```python
+#!/usr/bin/env python
+
+import sys
+from neutron.api.rpc.handlers import securitygroups_rpc as sg_rpc
+from neutron import objects
+from neutron.objects.ports import Port
+from neutron.api.rpc.callbacks import resources
+from neutron.agent import resource_cache
+from neutron.common import rpc as n_rpc
+from oslo_config import cfg
+import logging
+from neutron_lib import context as n_ctx
+
+
+logging.basicConfig(level=logging.DEBUG, handler=logging.StreamHandler(sys.stdout))
+cfg.CONF(project="test", default_config_files=['/etc/test/test.conf'])
+
+admin_ctx = n_ctx.get_admin_context()
+
+import time
+print time.time()
+print Port.get_objects(admin_ctx, security_group_id=('db2526f5-89f5-434d-95cd-5eb734ed30', ))
+print time.time()
+```
+
 ## SOLUTION
 
 * Then simplest solution is update openstack release to **queens** where a overloaded method is introduced to first get a subnet of ports.
