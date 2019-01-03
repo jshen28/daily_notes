@@ -8,7 +8,7 @@ Recently, I am trapped of problem where openstack server takes an unexpected amo
 
 To spin up an instance, nova needs to take care of lot of things - networking, volumes, etc - in mind. And the fact that nova offers different way to create instance really make the whole thing more complex. So to keep it simple, I would like limit my scope only to spin up from image.
 
-After instance is properly scheduled to one compute node, *nova-compute* will first prepare all required resources: *network*, *volumes* and pass those parameters to drivers. In this case, it is a libvirt driver. Driver will take those resources and compile them into a libvirt-accepted guest XML, besides **os-vif** will create some anscillary bridges if necessary (for example, traditionally nova-compute take a hybird approach while requires **os-vif** to create at least linuxbridge/veth/port). After guest XML created, driver will first define a domain. If it suceeds, driver will then create and pause this instnace. Then reason to pause VM is to wait for neutron sets up instance networking (security group, port, dhcp, etc.). After **port** is active, a **network-vif-plugged** event will be emit to dedicated compute node and nova-compute will finally resume VM and update database.
+After instance is properly scheduled to a compute node, *nova-compute* will first prepare all required resources: *network*, *volumes* and pass them to drivers. In this case, it is a libvirt driver. Driver will take those resources and compile them into a libvirt-accepted guest XML, and **os-vif** will create some anscillary bridges if necessary (for example, traditionally nova-compute take a hybird approach which requires **os-vif** to create at least linuxbridge/veth/port). After guest XML created, driver will first define a domain. If it succeeds, driver will then launch and pause this instnace. Then reason to pause is wait for neutron sets up networking (security group, port, dhcp, etc.) related. After **port** is active, a **network-vif-plugged** event will be emit to dedicated compute node and nova-compute will finally resume VM and update database.
 
 ## PROBLEM DESCRIPTION
 
@@ -23,51 +23,11 @@ class SecurityGroupInfoAPIMixin(object):
         sg_info = {'devices': ports,
                    'security_groups': {},
                    'sg_member_ips': {}}
+
+        # get security rules
         rules_in_db = self._select_rules_for_ports(context, ports)
 
-        for (port_id, rule_in_db) in rules_in_db:
-            security_group_id = rule_in_db.get('security_group_id')
-            if remote_gid:
-                if (remote_gid
-                    not in sg_info['devices'][port_id][
-                        'security_group_source_groups']):
-                    sg_info['devices'][port_id][
-                        'security_group_source_groups'].append(remote_gid)
-                if remote_gid not in remote_security_group_info:
-                    remote_security_group_info[remote_gid] = {}
-                if ethertype not in remote_security_group_info[remote_gid]:
-                    # this set will be serialized into a list by rpc code
-                    remote_security_group_info[remote_gid][ethertype] = set()
-
-            direction = rule_in_db['direction']
-            rule_dict = {
-                'direction': direction,
-                'ethertype': ethertype}
-
-            for key in ('protocol', 'port_range_min', 'port_range_max',
-                        'remote_ip_prefix', 'remote_group_id'):
-                if rule_in_db.get(key) is not None:
-                    if key == 'remote_ip_prefix':
-                        direction_ip_prefix = DIRECTION_IP_PREFIX[direction]
-                        rule_dict[direction_ip_prefix] = rule_in_db[key]
-                        continue
-                    rule_dict[key] = rule_in_db[key]
-            if security_group_id not in sg_info['security_groups']:
-                sg_info['security_groups'][security_group_id] = []
-            if rule_dict not in sg_info['security_groups'][security_group_id]:
-                sg_info['security_groups'][security_group_id].append(
-                    rule_dict)
-        # Update the security groups info if they don't have any rules
-        sg_ids = self._select_sg_ids_for_ports(context, ports)
-        for (sg_id, ) in sg_ids:
-            if sg_id not in sg_info['security_groups']:
-                sg_info['security_groups'][sg_id] = []
-
-        sg_info['sg_member_ips'] = remote_security_group_info
-        # the provider rules do not belong to any security group, so these
-        # rules still reside in sg_info['devices'] [port_id]
-        self._apply_provider_rule(context, sg_info['devices'])
-
+        # get ips by remote security group id
         return self._get_security_group_member_ips(context, sg_info)
 
 
@@ -128,11 +88,8 @@ class RemoteResourceCache(object):
             if self._is_stale(rtype, resource):
                 # if the server was slow enough to respond the object may have
                 # been updated already and pushed to us in another thread.
-                LOG.debug("Ignoring stale update for %s: %s", rtype, resource)
                 continue
             self.record_resource_update(context, rtype, resource)
-        LOG.debug("%s resources returned for queries %s", len(resources),
-                  query_ids)
         self._satisfied_server_queries.update(query_ids)
 
     def get_resources(self, rtype, filters):
@@ -211,6 +168,8 @@ class NeutronDbObject(NeutronObject):
         with cls.db_context_reader(context):
             db_objs = obj_db_api.get_objects(
                 cls, context, _pager=_pager, **cls.modify_fields_to_db(kwargs))
+
+            # _load_object will trigger *get_objects* again
             return [cls._load_object(context, db_obj) for db_obj in db_objs]
 ```
 
@@ -248,4 +207,4 @@ print time.time()
 
 ## SOLUTION
 
-* Then simplest solution is update openstack release to **queens** where a overloaded method is introduced to first get a subnet of ports.
+* Then simplest solution is update openstack release to **queens** where a overloaded method is introduced to first get a subset of all existing ports.
