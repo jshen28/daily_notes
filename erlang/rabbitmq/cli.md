@@ -26,3 +26,4 @@ rabbitmqctl list_policies -p ${vhost}
 * [Rabbitmq HA Guide](https://www.rabbitmq.com/ha.html)
 * [Policy Parameters](https://www.rabbitmq.com/parameters.html#why-policies-exist)
 * [rabbitmqctl man page](https://www.rabbitmq.com/rabbitmqctl.8.html)
+* [rabbitmq configuration guide](https://docs.pivotal.io/rabbitmq-cf/1-12/policies.html)
