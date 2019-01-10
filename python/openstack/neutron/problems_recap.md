@@ -22,6 +22,11 @@ root@cmp001:~# ip netns exec qrouter-ec006fc8-874a-40ab-834a-7e0fba3b6aee ip rul
 32767:	from all lookup default 
 37303:	from 172.31.0.17 lookup 16 
 2887712769:	from 172.31.0.1/20 lookup 2887712769
+
+root@cmp001:~# ip netns exec qrouter-ec006fc8-874a-40ab-834a-7e0fba3b6aee ip r show table 16
+default via 169.254.124.195 dev rfp-ec006fc8-8 
+
+root@cmp001:~# ip netns exec qrouter-ec006fc8-874a-40ab-834a-7e0fba3b6aee ip rule del table 16
 ```
 
 ### PMTU DISCOVERY
