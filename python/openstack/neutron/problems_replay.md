@@ -8,9 +8,21 @@
 
 > Servers within one VPC which lives on the same compute node have
 > different behaviors. While some of them could access internel
-> through snat namespace, others failed.
+> through snat namespace, others failed. If change default gateway
+> from distributed interface to centralized snat, then it works.
 
-It possibly has something to do with incomplete flow table. `ip neigh` shows that mac address is correct but `arping` cannot get response. It is quite confusing because it seems that `ping` will use cache value if destination address lives in the same subnet as the machine, but will try to fetch mac address when forward packet to a gateway.
+It first occurs to me that It may be casued by incomplete flow table rules, but it is not. After I manually change default gateway to **centralized gateway**, virtual machine is magically able to access internet target. I am still investigating this issue and hopefully solve this soon. I try to tracepath packet and it appears packet could be successfully transimitted to DVR. Interestingly, I also tested `cirros` on the same node and it seems normal. I tried to allow another IP pair by enabling `allowed-ip` and it **works**. After capturing packets on `qr-+`, it turns out clearly that packet from the problematic IP is not forwarded.
+
+Ok. I finally figure it out, there is an wrong configured ip-rule table which basically sends packet from `172.31.0.17` to a blackhole.
+
+```console
+root@cmp001:~# ip netns exec qrouter-ec006fc8-874a-40ab-834a-7e0fba3b6aee ip rule
+0:	from all lookup local 
+32766:	from all lookup main 
+32767:	from all lookup default 
+37303:	from 172.31.0.17 lookup 16 
+2887712769:	from 172.31.0.1/20 lookup 2887712769
+```
 
 ### PMTU DISCOVERY
 
