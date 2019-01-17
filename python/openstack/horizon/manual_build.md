@@ -101,3 +101,4 @@ In case customization is required, make sure repeat `manage.py collectstatic` an
 * [Configure websso](https://docs.openstack.org/keystone/pike/advanced-topics/federation/websso.html)
 * [Configure openid connect](https://docs.openstack.org/keystone/pike/advanced-topics/federation/openidc.html)
 * [mod_wsgi official documentation](https://modwsgi.readthedocs.io/en/develop/index.html)
+* [use virtualenv with mod_wsgi](https://www.digitalocean.com/community/tutorials/how-to-run-django-with-mod_wsgi-and-apache-with-a-virtualenv-python-environment-on-a-debian-vps)
