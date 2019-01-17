@@ -89,4 +89,4 @@ WEBSSO_IDP_MAPPING = {
 ## ISSUES
 
 * An older versioned `openstack_auth` might introduce a problem desrbied by [this commit](https://github.com/openstack/django_openstack_auth/commit/04491deed11022c29e24a02e69d750e981a7ac7a), and from `queens` **django-openstack-auth** has been merged into main repo of **horizon**.
-* By default, openstack does not offer natural support for single click sign in. User has to at least click `connect` button for one time.
+* By default, openstack does not offer native support for single click sign in. User has to at least click `connect` button for one time.
