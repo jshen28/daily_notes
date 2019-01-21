@@ -10,6 +10,12 @@ parameters:
   flavor_name:
     type: string
     default: southtest-2C2G40G
+  default_small_mtu_ip: 
+    type: string
+    default: 192.168.20.15
+  default_normal_mtu_ip:
+    type: string
+    default: 192.168.21.15
 
 resources:
 
@@ -36,9 +42,14 @@ resources:
       flavor: { get_param: flavor_name }
       networks:
         - network: { get_resource: small_mtu_network }
-      user_data: | 
-        #!/bin/bash
-        echo "root:123456" | chpasswd
+      user_data: 
+        str_replace:
+          template: |
+            #!/bin/bash
+            echo "root:123456" | chpasswd
+            ip r add 192.168.21.0/24 via $small_mtu_ip dev eth0
+          params:
+            $small_mtu_ip: { get_param: default_small_mtu_ip }
     
   normal_mtu_network:
     type: OS::Neutron::Net
@@ -63,10 +74,16 @@ resources:
       flavor: { get_param: flavor_name }
       networks:
         - network: { get_resource: normal_mtu_network }
-      user_data: |
-        #!/bin/bash
-        echo "root:123456" | chpasswd
-        echo 'net.ipv4.ip_forward=1' >> forward_rule.conf
+      user_data: 
+        str_replace:
+          template: |
+            #!/bin/bash
+            echo "root:123456" | chpasswd
+            echo 'net.ipv4.ip_forward=1' >> forward_rule.conf
+            ip r add 192.168.20.0/24 via $normal_mtu_ip dev eth0
+          params:
+            $normal_mtu_ip: { get_param: default_normal_mtu_ip }
+            
   
   router_server_fip:
     type: OS::Neutron::FloatingIP
@@ -76,6 +93,9 @@ resources:
   router_server_port:
     type: OS::Neutron::Port
     properties:
+      fixed_ips: 
+        - subnet_id: { get_resource: normal_mtu_subnet }
+          ip_address: { get_param: default_normal_mtu_ip }
       network: { get_resource: normal_mtu_network }
       port_security_enabled: false
 
@@ -101,6 +121,9 @@ resources:
   router_small_mtu_port:
       type: OS::Neutron::Port
       properties:
+          fixed_ips:
+            - subnet_id: { get_resource: small_mtu_subnet }
+              ip_address: { get_param: default_small_mtu_ip }
           network: { get_resource: small_mtu_network }
           port_security_enabled: false
 
@@ -127,7 +150,6 @@ resources:
           - sysctl -w net.ipv4.ip_forward=1
           - echo 'root:123456' | chpasswd
           - ifup eth1
-
 
   router_server:
     type: OS::Nova::Server
