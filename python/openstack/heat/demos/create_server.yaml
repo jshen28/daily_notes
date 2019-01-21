@@ -1,0 +1,35 @@
+---
+heat_template_version: 2017-09-01
+
+description: Sample Nova Server Template
+
+resources:
+
+  sample_network:
+    type: OS::Neutron::Net
+    properties:
+      tags:
+        - test
+      value_specs:
+        mtu: 1450
+
+  sample_subnet:
+    type: OS::Neutron::Subnet
+    propeties:
+      network: { get_resource: sample_network }
+      cidr: 192.168.20.0/24
+      dns_nameservers: [114.114.114.114]
+
+  sample_server_def:
+    type: OS::Nova::Server
+    properties:
+      name: sjt-test-heat
+      image: 45055dda-b34b-4c4d-b5cf-84b137fe04b7
+      flavor: southtest-2C2G40G
+      networks:
+        - network: { get_resource: sample_network }
+
+outputs:
+  single_console_url:
+    vlaue: { get_attr: [sample_server_def, console_urls, novnc] }
+    description: console URL for server

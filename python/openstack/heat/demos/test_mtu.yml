@@ -1,0 +1,156 @@
+---
+heat_template_version: 2017-09-01
+
+description: Sample Nova Server Template
+
+parameters:
+  image_name:
+    type: string
+    default: 	southtest-centos72
+  flavor_name:
+    type: string
+    default: southtest-2C2G40G
+
+resources:
+
+  small_mtu_network:
+    type: OS::Neutron::Net
+    properties:
+      tags:
+        - test
+      value_specs:
+        mtu: 1200
+
+  small_mtu_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network: { get_resource: small_mtu_network }
+      cidr: 192.168.20.0/24
+      dns_nameservers: [114.114.114.114]
+
+  small_mtu_server:
+    type: OS::Nova::Server
+    properties:
+      availability_zone: :cmp033
+      image: { get_param: image_name }
+      flavor: { get_param: flavor_name }
+      networks:
+        - network: { get_resource: small_mtu_network }
+      user_data: | 
+        #!/bin/bash
+        echo "root:123456" | chpasswd
+    
+  normal_mtu_network:
+    type: OS::Neutron::Net
+    properties:
+      tags:
+        - test
+      value_specs:
+        mtu: 1450
+
+  normal_mtu_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network: { get_resource: normal_mtu_network }
+      cidr: 192.168.21.0/24
+      dns_nameservers: [114.114.114.114]
+
+  normal_mtu_server:
+    type: OS::Nova::Server
+    properties:
+      availability_zone: :cmp044
+      image: { get_param: image_name }
+      flavor: { get_param: flavor_name }
+      networks:
+        - network: { get_resource: normal_mtu_network }
+      user_data: |
+        #!/bin/bash
+        echo "root:123456" | chpasswd
+        echo 'net.ipv4.ip_forward=1' >> forward_rule.conf
+  
+  router_server_fip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network:	floating-network
+
+  router_server_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_resource: normal_mtu_network }
+      port_security_enabled: false
+
+  router_for_normal_network:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info: 
+        network: floating-network
+
+  router_for_normal_network_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router: { get_resource: router_for_normal_network }
+      subnet: { get_resource: normal_mtu_subnet }
+
+  floating_ip_association:
+    type: OS::Neutron::FloatingIPAssociation
+    depends_on: router_for_normal_network_interface
+    properties:
+      floatingip_id: { get_resource: router_server_fip }
+      port_id: { get_resource: router_server_port }
+
+  router_small_mtu_port:
+      type: OS::Neutron::Port
+      properties:
+          network: { get_resource: small_mtu_network }
+          port_security_enabled: false
+
+  cloud_init_userdata:
+    type: OS::Heat::MultipartMime
+    properties:
+      parts:
+        - config: { get_resource: router_server_config }
+
+  router_server_config:
+    type: OS::Heat::CloudConfig
+    properties:
+      cloud_config: 
+        write_files:
+          - content: |
+              DEVICE=eth1
+              TYPE=Ethernet
+              ONBOOT=yes
+              BOOTPROTO=dhcp
+            path: /etc/sysconfig/network-scripts/ifcfg-eth1
+            owner: root:root
+            permission: 0644
+        runcmd:
+          - sysctl -w net.ipv4.ip_forward=1
+          - echo 'root:123456' | chpasswd
+          - ifup eth1
+
+
+  router_server:
+    type: OS::Nova::Server
+    properties:
+      image: { get_param: image_name}
+      flavor: { get_param: flavor_name }
+      availability_zone: :cmp086
+      networks:
+        - port: { get_resource: router_server_port }
+        - port: { get_resource: router_small_mtu_port }
+      user_data: { get_resource: router_server_config }
+      user_data_format: SOFTWARE_CONFIG
+
+outputs:
+
+  small_mtu_server_console:
+    value: { get_attr: [small_mtu_server, console_urls, novnc] }
+    description: console URL for server
+
+  normal_mtu_server_console:
+    value: { get_attr: [normal_mtu_server, console_urls, novnc] }
+    description: console URL for server
+
+  router_server_console:
+    value: { get_attr: [router_server, console_urls, novnc] }
+    description: console URL for server
