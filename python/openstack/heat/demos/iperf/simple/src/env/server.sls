@@ -3,8 +3,8 @@ sync_mine:
         - name: salt '*' mine.send network.get_hostname
 
 {% set i = 0 %}
-{% slaves_dict = salt['mine.get']('*', 'network.get_hostname') %}
-{% slave_ports = {} %}
+{% set slaves_dict = salt['mine.get']('*', 'network.get_hostname') %}
+{% set slave_ports = {} %}
 {%- for name, _ in slaves_dict.iteritems() %}
 
 {# assume slave will have different hostnames with master #}
@@ -26,6 +26,7 @@ regenerate_pillar:
         - user: root
         - group: root
         - mode: 644
+        - template: jinja
         - name: /srv/pillar/slave.sls
         - defaults:
             slave_ports: {{ slave_ports }}

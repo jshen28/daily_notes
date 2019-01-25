@@ -8,7 +8,6 @@ parameters:
     type: string
     default: 1450
 
-
 resources:
 
   sample_network:
@@ -62,6 +61,54 @@ resources:
     properties:
       parts:
         - config: { get_resource: router_server_config }
+        - config: { get_resource: salt_master_config }
+
+  slave_init_userdata:
+    type: OS::Heat::MultipartMime
+    properties:
+      parts:
+        - config: { get_resource: router_server_config }
+
+  salt_master_config:
+    type: OS::Heat::CloudConfig
+    properties:
+      cloud_config:
+        packages:
+          - salt-master
+          - reclass
+        write_files:
+          - path: /etc/salt/master.d/master.conf
+            content: |
+              auto_accept: True
+              file_roots:
+                  base:
+                      - /srv/salt
+              pillar_roots:
+                  base:
+                      - /srv/pillar
+          - path: /srv/pillar/top.sls
+            content: |
+              base:
+                "*":
+                  - slave
+          - path: /srv/salt/top.sls
+            content: |
+              base:
+                "*server*":
+                  - server
+                "*slave*":
+                  - slave
+          - path: /srv/salt/server.sls
+            content:
+              get_file: server.sls
+          - path: /srv/salt/slave.sls
+            content:
+                get_file: slave.sls
+          - path: /srv/salt/slave.temp
+            content:
+              get_file: slave.temp
+          - path: /srv/pillar/slave.sls
+            content: ''
 
   router_server_config:
     type: OS::Heat::CloudConfig
@@ -69,9 +116,6 @@ resources:
       cloud_config: 
         package_update: true
         package_upgrade: true
-        packages:
-          - salt-master
-          - reclass
         salt_minion:
           pkg_name: 'salt-minion'
           service_name: 'salt-minion'
@@ -88,30 +132,6 @@ resources:
             sudo: ALL=(ALL) NOPASSWD:ALL
             home: /home/sjt
             shell: /bin/bash
-        write_files:
-          - path: /etc/salt/master.d/master.conf
-            content: |
-              auto_accept: True
-              file_roots:
-                  base:
-                      - /srv/salt
-              pillar_roots:
-                  base:
-                      - /srv/pillar
-          - path: /srv/pillar/top.sls
-            content: |
-              base:
-                "*server*":
-                  - server
-                "*slave*":
-                  - slave
-          - path: /srv/salt/top.sls
-            content: |
-              base:
-                "*server*":
-                  - server
-                "*slave*":
-                  - slave
         runcmd:
           - wget https://iperf.fr/download/ubuntu/libiperf0_3.1.3-1_amd64.deb
           - wget https://iperf.fr/download/ubuntu/iperf3_3.1.3-1_amd64.deb
@@ -142,7 +162,7 @@ resources:
           flavor: southtest-2C2G40G
           networks:
             - network: { get_resource: sample_network }
-          user_data: { get_resource: cloud_init_userdata }
+          user_data: { get_resource: slave_init_userdata }
           user_data_format: SOFTWARE_CONFIG
           key_name: like
 

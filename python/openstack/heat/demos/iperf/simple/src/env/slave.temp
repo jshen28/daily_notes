@@ -1,3 +1,3 @@
-{% for name, port in slave_ports %}
+{% for name, port in slave_ports.iteritems() %}
 {{ name }}: {{ port }}
 {% endfor %}
