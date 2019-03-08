@@ -1,0 +1,11 @@
+# rename this file to docker-compose.yml
+# this basically shows how to replace docker run with a compose file
+---
+
+version: '3'
+services:
+  asciinema_converter:
+    image: 'asciinema/asciicast2gif:latest'
+    volumes:
+      - /home/ubuntu/test:/data
+    command: '118274.json test.gif'

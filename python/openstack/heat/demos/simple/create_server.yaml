@@ -8,9 +8,7 @@ parameters:
     type: string
     default: 1450
 
-
 resources:
-
   sample_network:
     type: OS::Neutron::Net
     properties:
@@ -54,39 +52,6 @@ resources:
       type: OS::Neutron::Port
       properties:
         network: { get_resource: sample_network }
-  
-  cloud_init_userdata:
-    type: OS::Heat::MultipartMime
-    properties:
-      parts:
-        - config: { get_resource: router_server_config }
-
-  router_server_config:
-    type: OS::Heat::CloudConfig
-    properties:
-      cloud_config: 
-        users:
-          - default
-          - name: sjt
-            passwd: $1$xyz$X11iz6ox24iPDed6detyU.
-            lock_passwd: false
-            groups: users, admin
-            sudo: ALL=(ALL) NOPASSWD:ALL
-            home: /home/sjt
-            shell: /bin/bash
-        write_files:
-          - content: |
-              DEVICE=eth1
-              TYPE=Ethernet
-              ONBOOT=yes
-              BOOTPROTO=dhcp
-            path: /etc/sysconfig/network-scripts/ifcfg-eth1
-            owner: root:root
-            permission: 0600
-        runcmd:
-          - sysctl -w net.ipv4.ip_forward=1
-          - echo 'root:123456' | chpasswd
-          - ifup eth1
 
   sample_iperf_server:
     type: OS::Nova::Server
@@ -97,8 +62,6 @@ resources:
       networks:
         - port: { get_resource: iperf_server_port }
       key_name: like
-      user_data: { get_resource: cloud_init_userdata }
-      user_data_format: SOFTWARE_CONFIG
 
   sample_iperf_client:
     type: OS::Nova::Server
@@ -108,8 +71,6 @@ resources:
       flavor: southtest-2C2G40G
       networks:
         - network: { get_resource: sample_network }
-      user_data: { get_resource: cloud_init_userdata }
-      user_data_format: SOFTWARE_CONFIG
       key_name: like
 
 outputs:

@@ -1,0 +1,22 @@
+heat_template_version: 2017-09-01
+ 
+resources:
+  sample_network:
+    type: OS::Neutron::Net
+    properties:
+      tags:
+        - test
+  sp:
+    type: OS::Neutron::SubnetPool
+    properties:
+      prefixes: [172.23.0.0/10]
+      default_prefixlen: 18
+  rg:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: 5
+      resource_def: 
+        type: net.yaml
+        properties:
+          sp: { get_resource: sp }
+          sample_network: { get_resource: sample_network }

@@ -1,0 +1,199 @@
+---
+heat_template_version: 2017-09-01
+
+description: Sample Nova Server Template
+
+parameters:
+  default_mtu:
+    type: string
+    default: 1450
+  default_slaves:
+    type: number
+    default: 50
+  slave_image:
+    type: string
+    default: southtest-centos72
+  slave_flavor:
+    type: string
+    default: southtest-2C2G40G 
+  master_image:
+    type: string
+    default: southtest-centos72
+  master_flavor:
+    type: string
+    default: southtest-2C2G40G 
+  default_cidr:
+    type: string
+    default: 192.168.0.0/16
+  default_master_ip:
+    type: string
+    default: 192.168.22.10
+
+
+resources:
+
+  sample_network:
+    type: OS::Neutron::Net
+    properties:
+      tags:
+        - test
+      value_specs:
+        mtu: { get_param: default_mtu }
+
+  sample_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network: { get_resource: sample_network }
+      cidr: 192.168.0.0/16
+      dns_nameservers: [114.114.114.114]
+
+  router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info: 
+        network: floating-network
+  
+  router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router: { get_resource: router }
+      subnet: { get_resource: sample_subnet }
+  
+  router_server_fip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: floating-network
+
+  floating_ip_association:
+    type: OS::Neutron::FloatingIPAssociation
+    depends_on: router_interface
+    properties:
+      floatingip_id: { get_resource: router_server_fip }
+      port_id: { get_resource: iperf_server_port }
+
+  iperf_server_port:
+      type: OS::Neutron::Port
+      properties:
+        network: { get_resource: sample_network }
+        fixed_ips:
+          - ip_address: 192.168.22.10
+  
+  cloud_init_userdata:
+    type: OS::Heat::MultipartMime
+    properties:
+      parts:
+        - config: { get_resource: router_server_config }
+        - config: { get_resource: salt_master_config }
+
+  slave_init_userdata:
+    type: OS::Heat::MultipartMime
+    properties:
+      parts:
+        - config: { get_resource: router_server_config }
+
+  salt_master_config:
+    type: OS::Heat::CloudConfig
+    properties:
+      cloud_config:
+        runcmd:
+          - yum install -y epel-release
+          - yum install -y salt-master reclass salt-minion
+          - curl ftp://ftp.nominum.com/pub/nominum/dhcperf/1.0.1.0/dhcperf-1.0.1.0-1-rhel-4-i386.tar.gz -o /tmp/dhcperf.tar.gz && tar xzf /tmp/dhcperf.tar.gz -C /tmp && cd /tmp/dhcperf-1.0.1.0-1 && yum install -y *.rpm
+          - systemctl enable salt-master
+          - systemctl start salt-master
+          - systemctl enable salt-minion
+          - systemctl start salt-minion
+        write_files:
+          - path: /etc/salt/minion
+            content: |
+              master: 192.168.22.10
+          - path: /etc/salt/master.d/master.conf
+            content: |
+              auto_accept: True
+              file_roots:
+                  base:
+                      - /srv/salt
+              pillar_roots:
+                  base:
+                      - /srv/pillar
+          - path: /srv/pillar/top.sls
+            content: |
+              base:
+                "*":
+                  - slave
+          - path: /srv/salt/top.sls
+            content: |
+              base:
+                "*server*":
+                  - server
+                "*slave*":
+                  - slave
+          - path: /srv/salt/server.sls
+            content:
+              get_file: server.sls
+          - path: /srv/salt/slave.sls
+            content:
+                get_file: slave.sls
+          - path: /srv/salt/slave.temp
+            content:
+              get_file: slave.temp
+          - path: /srv/pillar/slave.sls
+            content: ''
+
+  router_server_config:
+    type: OS::Heat::CloudConfig
+    properties:
+      cloud_config: 
+        ssh_pwauth: true
+        write_files:
+          - path: /etc/salt/minion
+            content: |
+              master: 192.168.22.10        
+        runcmd:
+          - yum install -y epel-release
+          - yum install -y wget salt-minion
+          - wget https://iperf.fr/download/ubuntu/libiperf0_3.1.3-1_amd64.deb
+          - wget https://iperf.fr/download/ubuntu/iperf3_3.1.3-1_amd64.deb
+          - mkdir -p /srv/salt
+          - mkdir -p /salt/pillar
+          - systemctl enable salt-minion
+          - systemctl start salt-minion
+          - curl ftp://ftp.nominum.com/pub/nominum/dhcperf/1.0.1.0/dhcperf-1.0.1.0-1-rhel-4-i386.tar.gz -o /tmp/dhcperf.tar.gz && tar xzf /tmp/dhcperf.tar.gz -C /tmp && cd /tmp/dhcperf-1.0.1.0-1 && yum install -y *.rpm
+
+  sample_iperf_server:
+    type: OS::Nova::Server
+    properties:
+      name: sjt-test-server
+      image: { get_param: master_image }
+      flavor: { get_param: master_flavor }
+      networks:
+        - port: { get_resource: iperf_server_port }
+      key_name: like
+      user_data: { get_resource: cloud_init_userdata }
+      user_data_format: SOFTWARE_CONFIG
+
+  slave_resources:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: { get_param: default_slaves }
+      resource_def:
+        type: OS::Nova::Server
+        properties:
+          image: { get_param: slave_image }
+          flavor: { get_param: slave_flavor }
+          networks:
+            - network: { get_resource: sample_network }
+          user_data: { get_resource: slave_init_userdata }
+          user_data_format: SOFTWARE_CONFIG
+          key_name: like
+
+outputs:
+  single_console_url:
+    value: { get_attr: [sample_iperf_server, console_urls, novnc] }
+    description: console URL for server
+  network_id:
+    value: { get_resource: sample_network }
+    description: network id
+  server_floating_ip:
+    value : { get_attr: [router_server_fip, floating_ip_address] }
+    description: server floating ip
