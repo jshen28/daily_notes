@@ -46,18 +46,40 @@ ip netns exec ${NS_NAME} ip addr add ${VETH1_CIRD} dev ${VETH1}
 ip netns exec ${NS_NAME} ip link set ${VETH1} up
 
 # test connectivity by ping
+# make sure veth0 and veth1 stay in the same subnet
 ip netns exec ${NS_NAME} ping ${VETH0_ADDR}
 ```
 
 ### SETUP PROXY ARP
 
 ```bash
-ip route add to ${PROXIED_IPADDR} via ${ANOTHER_IPADDR_ON_VM}
+# make sure NEXT_HOP is reachable from this machine
+ip route add ${PROXIED_IPADDR} via ${NEXT_HOP}
 
 # try arping in another namespace
 # install arping if it is not present
 ip netns exec ${NS_NAME} arping ${VETH0}
 ```
+
+### PROXY ARP WITHOUT IP ADDRESS
+
+Actually it is also possible not assigning any ip addresses on `VETH1` as long as proxy-arped address is
+in some specially ranges, (eg 169.254.0.0/16 which is assumed to be a local address). Besides enable proxy arp as usual,
+extra task is only create an extra route and point back to `VETH0`. For example,
+
+```bash
+# contd. working in default network namespace
+ip route add ${PROXIED_IP_ADDRESS} dev ${VETH1}
+
+# magically..
+# ping is not supposed to work
+# but mac addresses should be existing
+ip netns exec ${NS_NAME} ping 169.254.1.1 -c 3
+ip netns exec ${NS_NAME} arp -a
+```
+
+Actually this trick is used by [project calico](https://github.com/projectcalico/libnetwork-plugin/issues/66) and although code linked in 
+the github issue is pretty outdated, it appears that current implementation is more or less the [same](https://github.com/projectcalico/felix/blob/fd908e6b8fe6f559d66b684dc5c3d77664ed1fd4/dataplane/linux/endpoint_mgr.go#L898).
 
 ### PROXY ARP REFERENCES
 
