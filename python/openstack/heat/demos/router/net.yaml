@@ -1,0 +1,87 @@
+---
+heat_template_version: 2017-09-01
+
+parameters:
+  sp:
+    type: string
+    default: test
+  
+  sample_network:
+    type: string
+    default: test
+
+  master_ip:
+    type: string
+    default: 192.168.22.10
+
+  slave_image:
+    type: string
+
+  slave_flavor:
+    type: string
+
+resources:
+
+  sample_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      tags:
+        - test
+      subnetpool: { get_param: sp }
+      network: { get_param: sample_network }
+      dns_nameservers: [114.114.114.114, 8.8.8.8]
+
+  router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info: 
+        network: floating-network
+  
+  router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router: { get_resource: router }
+      subnet: { get_resource: sample_subnet }
+
+  slave_server:
+    type: OS::Nova::Server
+    properties:
+      image: { get_param: slave_image }
+      flavor: { get_param: slave_flavor }
+      key_name: like
+      networks:
+        - subnet: { get_resource: sample_subnet }
+      user_data: { get_resource: slave_init_userdata }
+      user_data_format: SOFTWARE_CONFIG
+      key_name: like
+
+  slave_init_userdata:
+    type: OS::Heat::MultipartMime
+    properties:
+      parts:
+        - config: { get_resource: router_server_config }
+
+  router_server_config:
+    type: OS::Heat::CloudConfig
+    properties:
+      cloud_config: 
+        ssh_pwauth: true
+        write_files:
+          - path: /etc/salt/minion
+            content: 
+              str_replace:
+                template: |
+                  master: $master_ip 
+                params:
+                  $master_ip: { get_param: master_ip }
+        runcmd:
+          - yum install -y epel-release
+          - yum install -y wget salt-minion
+          - wget https://iperf.fr/download/ubuntu/libiperf0_3.1.3-1_amd64.deb
+          - wget https://iperf.fr/download/ubuntu/iperf3_3.1.3-1_amd64.deb
+          - mkdir -p /srv/salt
+          - mkdir -p /salt/pillar
+          - systemctl enable salt-minion
+          - systemctl start salt-minion
+          - curl ftp://ftp.nominum.com/pub/nominum/dhcperf/1.0.1.0/dhcperf-1.0.1.0-1-rhel-4-i386.tar.gz -o /tmp/dhcperf.tar.gz && tar xzf /tmp/dhcperf.tar.gz -C /tmp && cd /tmp/dhcperf-1.0.1.0-1 && yum install -y *.rpm
+

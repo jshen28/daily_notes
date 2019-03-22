@@ -41,10 +41,25 @@ resource "openstack_compute_instance_v2" "my_instance" {
       passwd: $1$xyz$X11iz6ox24iPDed6detyU.
       home: /home/foo
       shell: /bin/bash
+  apt:
+    sources: 
+      openstack-queens.list:
+        source: "deb http://ubuntu-cloud.archive.canonical.com/ubuntu xenial-updates/queens main"
+        keyid: EC4926EA
+
   package_update: true
   package_upgrade: true
   packages:
     - salt-master
+    - python-openstackclient
+    - mysql-server
+    - mysql-client
+    - libapache2-mod-auth-openidc
+    - python-dev
+    - python-pip
+    - python3-pip
+    - gcc
+    - make
   salt_minion:
     pkg_name: 'salt-minion'
     service_name: 'salt-minion'
@@ -55,6 +70,10 @@ resource "openstack_compute_instance_v2" "my_instance" {
     - path: /etc/salt/master.d/master.conf
       content: |
         auto_accept: True
+    - path: /root/.pip/pip.conf
+      content: |
+        [global]
+        index-url = https://pypi.douban.com/simple
   runcmd:
     - systemctl restart salt-master
     - systemctl restart salt-minion
@@ -64,6 +83,18 @@ resource "openstack_compute_instance_v2" "my_instance" {
     uuid = "75ed2818-25b9-4dfa-8987-7a889dedef85"
     name = "admin-test"
   }
+}
+
+resource "openstack_blockstorage_volume_v3" "volume_1" {
+  region      = "RegionOne"
+  name        = "terraform_volume_1"
+  description = "first test volume"
+  size        = 10
+}
+
+resource "openstack_compute_volume_attach_v2" "va_1" {
+  instance_id = "${openstack_compute_instance_v2.my_instance.id}"
+  volume_id   = "${openstack_blockstorage_volume_v3.volume_1.id}"
 }
 
 resource "openstack_networking_floatingip_v2" "test_fip" {
